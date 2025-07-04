@@ -18,7 +18,7 @@ public struct NetworkRequest: CustomStringConvertible, Identifiable, Sendable {
     }
 
     /// 重置请求
-    public typealias ResetBlock = @Sendable (NetworkRequest) throws -> NetworkRequest
+    public typealias ResetBlock = @Sendable (NetworkRequest) async throws -> NetworkRequest
 
     /// request变量
     public let id: String
@@ -35,7 +35,7 @@ public struct NetworkRequest: CustomStringConvertible, Identifiable, Sendable {
 
     /// 重置请求的block
     public let resetBlock: ResetBlock?
-    /// 重试
+    /// 重试，最大 512，避免无限重试
     public let retryTime: Int
 
     public init(
@@ -46,7 +46,7 @@ public struct NetworkRequest: CustomStringConvertible, Identifiable, Sendable {
         bodyStream: InputStream? = nil,
         headers: [String: String]? = nil,
         reset: ResetBlock? = nil,
-        retryTime: Int = 0
+        retryTime: Int = 3 /// 最大512次
     ) {
         id = UUID().uuidString
         self.path = path
@@ -55,17 +55,17 @@ public struct NetworkRequest: CustomStringConvertible, Identifiable, Sendable {
         self.body = body
         self.headers = headers
         resetBlock = reset
-        self.retryTime = retryTime
+        self.retryTime = min(retryTime,512)
     }
 
-    internal func reset() throws -> NetworkRequest {
+    public func reset() async throws -> NetworkRequest {
         if let reset = resetBlock {
-            return try reset(self)
+            return try await reset(self)
         } else {
-            if retryTime > 3 {
+            if retryTime == 0 {
                 throw NetworkError.maxRetry
             }
-            return copyWithModify(retryTime: { $0 + 1 })
+            return copyWithModify(retryTime: { $0 - 1 })
         }
     }
     

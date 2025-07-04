@@ -9,6 +9,9 @@ public protocol ParameterEncoder {
  * url encode 方式参数的encoder，form表单提交信息使用
  **/
 public class URLEncodedFormParameterEncoder: ParameterEncoder {
+    public init() {
+    }
+
     public func encode<T: Encodable>(_ parameters: T) throws -> Data {
         let data = try JSONEncoder().encode(parameters)
         let dictionary = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
