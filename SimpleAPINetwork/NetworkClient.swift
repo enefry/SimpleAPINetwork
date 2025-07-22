@@ -260,7 +260,7 @@ public class URLSessionNetworkClient: NetworkClient {
         }
     }
 
-    private func buildURLRequest(from request: NetworkRequest) -> URLRequest? {
+    public func buildURLRequest(from request: NetworkRequest) -> URLRequest? {
         var urlString = request.path
 
         // 如果path不是绝对URL，则拼接baseURL
