@@ -12,6 +12,7 @@ public enum NetworkError: Error {
     case unknown
     case maxRetry
     case inRetry
+    case custom(String)
     func canRetry() -> Bool {
         switch self {
         case .requestFailed, .httpError, .inRetry:

@@ -12,7 +12,7 @@ let package = Package(
     .library(name: "SimpleAPINetwork", targets: ["SimpleAPINetwork"])
   ],
   dependencies: [
-    .package(url: "https://github.com/enefry/LoggerProxy.git", from: "1.1.0"),
+    .package(url: "https://github.com/enefry/LoggerProxy.git", from: "2.0.0"),
     .package(url: "https://github.com/enefry/ConcurrencyCollection.git", from: "0.0.4"),
   ],
   targets: [

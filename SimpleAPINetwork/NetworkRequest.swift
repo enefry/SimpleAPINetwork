@@ -43,7 +43,6 @@ public struct NetworkRequest: CustomStringConvertible, Identifiable, Sendable {
         method: Method,
         query: [String: String]? = nil,
         body: Body? = nil,
-        bodyStream: InputStream? = nil,
         headers: [String: String]? = nil,
         reset: ResetBlock? = nil,
         retryTime: Int = 3 /// 最大512次
@@ -57,7 +56,7 @@ public struct NetworkRequest: CustomStringConvertible, Identifiable, Sendable {
         resetBlock = reset
         self.retryTime = min(retryTime,512)
     }
-
+    
     public func reset() async throws -> NetworkRequest {
         if let reset = resetBlock {
             return try await reset(self)
