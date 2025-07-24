@@ -37,7 +37,7 @@ public class MultipartInputStream: InputStream {
         public var description: String {
             let escapedName = name.replacingOccurrences(of: "\"", with: "\\\"")
             if let filename = filename?.rfc5987Encoded() {
-                return "Content-Disposition: \(type); name=\"file\"; filename*=UTF-8''\(filename)"
+                return "Content-Disposition: \(type); name=\"\(escapedName)\"; filename*=UTF-8''\(filename)"
             } else {
                 return "Content-Disposition: \(type); name=\"\(escapedName)\""
             }
