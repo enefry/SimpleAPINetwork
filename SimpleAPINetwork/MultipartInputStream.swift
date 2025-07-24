@@ -61,7 +61,7 @@ public class MultipartInputStream: InputStream {
                 lines.append("Content-Type: \(contentType)")
             }
             lines.append("") // 空行：分隔 header 与 body
-            let headerString = lines.joined(separator: "\r\n") + "\r\n"
+            let headerString = lines.joined(separator: "\r\n") + "\r\n\r\n"
             return Data(headerString.utf8)
         }
     }
