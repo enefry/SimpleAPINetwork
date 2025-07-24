@@ -23,6 +23,12 @@ public class LimitedFileInputStream: InputStream {
         super.init(data: Data())
     }
 
+    public convenience init(url: URL, offset: UInt64, maxBytes: Int64) throws {
+        let fileHandle = try FileHandle(forReadingFrom: url)
+        try fileHandle.seek(toOffset: offset)
+        self.init(fileHandle: fileHandle, maxBytes: maxBytes)
+    }
+
     deinit {
         close()
     }
