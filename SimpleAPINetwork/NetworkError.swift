@@ -2,6 +2,7 @@ import Foundation
 /// 网络请求错误
 public enum NetworkError: Error {
     case invalidURL
+    case invalidParams
     case noData
     case cancel
     case noAuthProvider
