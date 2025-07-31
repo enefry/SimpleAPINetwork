@@ -36,8 +36,8 @@ public class MultipartInputStream: InputStream {
 
         public var description: String {
             let escapedName = name.replacingOccurrences(of: "\"", with: "\\\"")
-            if let filename = filename?.rfc5987Encoded() {
-                return "Content-Disposition: \(type); name=\"\(escapedName)\"; filename*=UTF-8''\(filename)"
+            if let filename = filename {
+                return "Content-Disposition: \(type); name=\"\(escapedName)\"; filename=\"\(filename)\""
             } else {
                 return "Content-Disposition: \(type); name=\"\(escapedName)\""
             }
@@ -61,7 +61,7 @@ public class MultipartInputStream: InputStream {
                 lines.append("Content-Type: \(contentType)")
             }
             lines.append("") // 空行：分隔 header 与 body
-            let headerString = lines.joined(separator: "\r\n") + "\r\n\r\n"
+            let headerString = lines.joined(separator: "\r\n") + "\r\n"
             return Data(headerString.utf8)
         }
     }

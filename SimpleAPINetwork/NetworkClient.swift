@@ -115,6 +115,7 @@ public class URLSessionNetworkClient: NetworkClient {
                 )
                 requestResult = .success(result)
             } catch {
+                LoggerProxy.WLog(tag: kLogTag, msg: "send error:\(error)")
                 requestResult = .failure(error)
             }
 
@@ -140,6 +141,7 @@ public class URLSessionNetworkClient: NetworkClient {
             } else {
                 // 无法重试，抛出最后的错误
                 if case let .failure(error) = requestResult {
+                    LoggerProxy.WLog(tag: kLogTag, msg: "send error:\(error)")
                     throw error
                 } else {
                     throw NetworkError.unknown
