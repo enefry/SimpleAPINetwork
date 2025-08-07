@@ -16,6 +16,7 @@ public protocol CommonResponseHead: Decodable {
 
 /// 网络请求客户端，负责发起请求、处理响应
 public protocol NetworkClient {
+    typealias CallerInfo = (functionName: String, line: Int)
     /// 添加拦截器
     /// - Parameters:
     ///     - interceptor 拦截器
@@ -32,19 +33,32 @@ public protocol NetworkClient {
     ///   - usingCommon: 是否使用公共头验证
     /// - Returns: 解码后的模型
     /// - Throws: 网络错误
-    func send<T: Decodable, H: CommonResponseHead>(
+    func _send<T: Decodable, H: CommonResponseHead>(
         _ request: NetworkRequest,
         commonType: H.Type,
-        usingCommon: Bool
+        usingCommon: Bool,
+        callerInfo: CallerInfo
     ) async throws -> T
 }
 
 public extension NetworkClient {
     func send<T: Decodable, H: CommonResponseHead>(
         _ request: NetworkRequest,
-        commonType: H.Type
+        commonType: H.Type,
+        functionName:String = #function,
+        line:Int = #line
     ) async throws -> T {
-        try await send(request, commonType: commonType, usingCommon: true)
+        try await _send(request, commonType: commonType, usingCommon: true, callerInfo:  CallerInfo(functionName,line))
+    }
+
+    func send<T: Decodable, H: CommonResponseHead>(
+        _ request: NetworkRequest,
+        commonType: H.Type,
+        usingCommon: Bool,
+        functionName:String = #function,
+        line:Int = #line
+    ) async throws -> T {
+        try await _send(request, commonType: commonType, usingCommon: usingCommon, callerInfo: CallerInfo(functionName,line))
     }
 }
 
@@ -73,10 +87,11 @@ public class URLSessionNetworkClient: NetworkClient {
         var isSuccess: Bool { true }
     }
 
-    public func send<T: Decodable, H: CommonResponseHead>(
+    public func _send<T: Decodable, H: CommonResponseHead>(
         _ request: NetworkRequest,
         commonType: H.Type,
-        usingCommon: Bool
+        usingCommon: Bool,
+        callerInfo: CallerInfo
     ) async throws -> T {
         var currentRequest = request
 
@@ -90,7 +105,7 @@ public class URLSessionNetworkClient: NetworkClient {
             }
 
             // 2. 日志打印请求
-            LoggerProxy.DLog(tag: kLogTag, msg: "send:\(processedRequest.id) of: \(processedRequest)")
+            LoggerProxy.DLog(tag: kLogTag, msg: "send:\(processedRequest.id) of: \(processedRequest),caller=[\(callerInfo.functionName):\(callerInfo.line)]")
 
             // 3. 构建URLRequest
             guard let urlRequest = buildURLRequest(from: processedRequest) else {
@@ -102,7 +117,7 @@ public class URLSessionNetworkClient: NetworkClient {
             var _data: Data?
             var _response: URLResponse?
             do {
-                let (data, response) = try await performRequest(urlRequest: urlRequest, requestID: processedRequest.id)
+                let (data, response) = try await performRequest(urlRequest: urlRequest, requestID: processedRequest.id, callerInfo: callerInfo)
                 _data = data
                 _response = response
                 // 5. 处理响应
@@ -111,11 +126,12 @@ public class URLSessionNetworkClient: NetworkClient {
                     response: response,
                     request: processedRequest,
                     commonType: commonType,
-                    usingCommon: usingCommon
+                    usingCommon: usingCommon,
+                    callerInfo: callerInfo
                 )
                 requestResult = .success(result)
             } catch {
-                LoggerProxy.WLog(tag: kLogTag, msg: "send error:\(error)")
+                LoggerProxy.WLog(tag: kLogTag, msg: "send error:\(error),caller=[\(callerInfo.functionName):\(callerInfo.line)]")
                 requestResult = .failure(error)
             }
 
@@ -126,7 +142,8 @@ public class URLSessionNetworkClient: NetworkClient {
                 response: _response,
                 request: processedRequest,
                 commonType: commonType,
-                usingCommon: usingCommon
+                usingCommon: usingCommon,
+                callerInfo: callerInfo
             )
 
             // 7. 处理拦截器返回的结果
@@ -135,13 +152,13 @@ public class URLSessionNetworkClient: NetworkClient {
             }
 
             if interceptorResult.shouldRetry, let retryRequest = interceptorResult.retryRequest {
-                LoggerProxy.DLog(tag: kLogTag, msg: "Retrying request=\(retryRequest.id), remaining retries=\(retryRequest.retryTime)")
+                LoggerProxy.DLog(tag: kLogTag, msg: "Retrying request=\(retryRequest.id), remaining retries=\(retryRequest.retryTime) ,caller=[\(callerInfo.functionName):\(callerInfo.line)]")
                 currentRequest = retryRequest
                 continue // 继续循环进行重试
             } else {
                 // 无法重试，抛出最后的错误
                 if case let .failure(error) = requestResult {
-                    LoggerProxy.WLog(tag: kLogTag, msg: "send error:\(error)")
+                    LoggerProxy.WLog(tag: kLogTag, msg: "send error:\(error),caller=[\(callerInfo.functionName):\(callerInfo.line)]")
                     throw error
                 } else {
                     throw NetworkError.unknown
@@ -150,12 +167,12 @@ public class URLSessionNetworkClient: NetworkClient {
         } while true
     }
 
-    private func performRequest(urlRequest: URLRequest, requestID: String) async throws -> (Data, URLResponse) {
+    private func performRequest(urlRequest: URLRequest, requestID: String, callerInfo: CallerInfo) async throws -> (Data, URLResponse) {
         do {
             let (data, response) = try await session.data(for: urlRequest)
             return (data, response)
         } catch {
-            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(requestID),error:\(error)")
+            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(requestID),error:\(error),caller=[\(callerInfo.functionName):\(callerInfo.line)]")
             throw NetworkError.requestFailed(error)
         }
     }
@@ -165,16 +182,17 @@ public class URLSessionNetworkClient: NetworkClient {
         response: URLResponse,
         request: NetworkRequest,
         commonType: H.Type,
-        usingCommon: Bool
+        usingCommon: Bool,
+        callerInfo: CallerInfo
     ) async throws -> T {
         // 检查HTTP状态码
         guard let httpResponse = response as? HTTPURLResponse else {
-            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id), unknown error")
+            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id), unknown error,caller=[\(callerInfo.functionName):\(callerInfo.line)]")
             throw NetworkError.unknown
         }
 
         guard 200 ... 299 ~= httpResponse.statusCode else {
-            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id), resp=\(httpResponse)")
+            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id), resp=\(httpResponse),caller=[\(callerInfo.functionName):\(callerInfo.line)]")
             throw NetworkError.httpError(httpResponse.statusCode)
         }
 
@@ -183,7 +201,8 @@ public class URLSessionNetworkClient: NetworkClient {
             data: data,
             request: request,
             commonType: commonType,
-            usingCommon: usingCommon
+            usingCommon: usingCommon,
+            callerInfo: callerInfo
         )
 
         return decodedResult
@@ -193,7 +212,8 @@ public class URLSessionNetworkClient: NetworkClient {
         data: Data,
         request: NetworkRequest,
         commonType: H.Type,
-        usingCommon: Bool
+        usingCommon: Bool,
+        callerInfo: CallerInfo
     ) async throws -> T {
         do {
             let head: any CommonResponseHead
@@ -213,14 +233,14 @@ public class URLSessionNetworkClient: NetworkClient {
                 } else if let unitResponse = () as? T {
                     return unitResponse
                 } else {
-                    LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id),api->\(head.code),\(head.msg ?? "-")")
+                    LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id),api->\(head.code),\(head.msg ?? "-"),caller=[\(callerInfo.functionName):\(callerInfo.line)]")
                     throw NetworkError.apiError(head.code, head.msg ?? "unknown error")
                 }
             }
         } catch let error as NetworkError {
             throw error
         } catch {
-            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id),process:\(error)")
+            LoggerProxy.ELog(tag: kLogTag, msg: "request=\(request.id),process:\(error),caller=[\(callerInfo.functionName):\(callerInfo.line)]")
             throw NetworkError.decodingFailed(error)
         }
     }
@@ -231,7 +251,8 @@ public class URLSessionNetworkClient: NetworkClient {
         response: URLResponse?,
         request: NetworkRequest,
         commonType: H.Type,
-        usingCommon: Bool
+        usingCommon: Bool,
+        callerInfo: CallerInfo
     ) async throws -> (success: T?, shouldRetry: Bool, retryRequest: NetworkRequest?) {
         var interceptorResponse = NetworkInterceptorResponse<T>(
             httpResponse: response,
